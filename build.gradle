@@ -59,14 +59,12 @@ jacocoTestReport {
 task instrument(dependsOn: ['classes']) {
     ext.outputDir = buildDir.path + '/classes-instrumented'
     doLast {
+        print "sourceSets.main.output.classesDirs: ${sourceSets.main.output.classesDirs}"
         ant.taskdef(name: 'instrument',
                 classname: 'org.jacoco.ant.InstrumentTask',
-                classpath: configurations.jacocoAnt.asPath
-        )
+                classpath: configurations.jacocoAnt.asPath)
         ant.instrument(destdir: outputDir) {
-            sourceSets.main.output.classesDirs.each {
-                fileset(dir: it)
-            }
+            sourceSets.main.output.classesDirs.each { fileset(dir: it) }
         }
     }
 }
@@ -93,9 +91,7 @@ task report(dependsOn: ['instrument', 'test']) {
             }
             structure(name: 'Example') {
                 classfiles {
-                    sourceSets.main.output.classesDirs.each {
-                        fileset(dir: it)
-                    }
+                    sourceSets.main.output.classesDirs.each { fileset(dir: it) }
                 }
                 sourcefiles {
                     fileset(dir: 'src/main/java')
