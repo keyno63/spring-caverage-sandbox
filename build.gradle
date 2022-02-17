@@ -8,11 +8,14 @@ plugins {
 group = 'tokyo.maigo-name'
 version = '0.0.1-SNAPSHOT'
 sourceCompatibility = '11'
+targetCompatibility = '11'
 
 configurations {
     compileOnly {
         extendsFrom annotationProcessor
     }
+    jacocoAnt
+    jacocoRuntime
 }
 
 repositories {
@@ -29,6 +32,9 @@ dependencies {
     testImplementation 'org.powermock:powermock-api-mockito2:2.0.9'
     testImplementation 'org.junit.vintage:junit-vintage-engine:5.8.2'
     testImplementation 'junit:junit:4.13.2'
+
+    jacocoAnt 'org.jacoco:org.jacoco.ant:0.8.7:nodeps'
+    jacocoRuntime 'org.jacoco:org.jacoco.agent:0.8.7:runtime'
 }
 
 tasks.named('test') {
@@ -50,6 +56,57 @@ jacocoTestReport {
     }
 }
 
+task instrument(dependsOn: ['classes']) {
+    ext.outputDir = buildDir.path + '/classes-instrumented'
+    doLast {
+        ant.taskdef(name: 'instrument',
+                classname: 'org.jacoco.ant.InstrumentTask',
+                classpath: configurations.jacocoAnt.asPath
+        )
+        ant.instrument(destdir: outputDir) {
+            sourceSets.main.output.classesDirs.each {
+                fileset(dir: it)
+            }
+        }
+    }
+}
+
+gradle.taskGraph.whenReady { graph ->
+    if (graph.hasTask(instrument)) {
+        tasks.withType(Test) {
+            doFirst {
+                systemProperty 'jacoco-agent.destfile', buildDir.path + '/jacoco/test.exec'
+                classpath = files(instrument.outputDir) + classpath + configurations.jacocoRuntime
+            }
+        }
+    }
+}
+
+task report(dependsOn: ['instrument', 'test']) {
+    doLast {
+        ant.taskdef(name: 'report',
+                classname: 'org.jacoco.ant.ReportTask',
+                classpath: configurations.jacocoAnt.asPath)
+        ant.report() {
+            executiondata {
+                ant.file(file: buildDir.path + '/jacoco/test.exec')
+            }
+            structure(name: 'Example') {
+                classfiles {
+                    sourceSets.main.output.classesDirs.each {
+                        fileset(dir: it)
+                    }
+                }
+                sourcefiles {
+                    fileset(dir: 'src/main/java')
+                }
+            }
+            xml(destfile: buildDir.path + '/reports/tests/report.xml')
+            html(destdir: buildDir.path + '/reports/tests/html')
+        }
+    }
+}
+
 test {
-    finalizedBy jacocoTestReport
+    finalizedBy report
 }
